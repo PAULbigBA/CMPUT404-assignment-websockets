@@ -26,15 +26,18 @@ app = Flask(__name__)
 sockets = Sockets(app)
 app.debug = True
 
-#below code: https://github.com/abramhindle/WebSocketsExamples/blob/master/broadcaster.py
+# below code: https://github.com/abramhindle/WebSocketsExamples/blob/master/broadcaster.py
 clients = list()
+
 
 def send_all(msg):
     for client in clients:
-        client.put( msg )
+        client.put(msg)
+
 
 def send_all_json(obj):
-    send_all( json.dumps(obj) )
+    send_all(json.dumps(obj))
+
 
 class Client:
     def __init__(self):
@@ -45,25 +48,26 @@ class Client:
 
     def get(self):
         return self.queue.get()
-    
+
+
 class World:
     def __init__(self):
         self.clear()
         # we've got listeners now!
         self.listeners = list()
-        
+
     def add_set_listener(self, listener):
-        self.listeners.append( listener )
+        self.listeners.append(listener)
 
     def update(self, entity, key, value):
-        entry = self.space.get(entity,dict())
+        entry = self.space.get(entity, dict())
         entry[key] = value
         self.space[entity] = entry
-        self.update_listeners( entity )
+        self.update_listeners(entity)
 
     def set(self, entity, data):
         self.space[entity] = data
-        self.update_listeners( entity )
+        self.update_listeners(entity)
 
     def update_listeners(self, entity):
         '''update the set listeners'''
@@ -74,26 +78,31 @@ class World:
         self.space = dict()
 
     def get(self, entity):
-        return self.space.get(entity,dict())
-    
+        return self.space.get(entity, dict())
+
     def world(self):
         return self.space
 
-myWorld = World()        
 
-def set_listener( entity, data ):
+myWorld = World()
+
+
+def set_listener(entity, data):
     ''' do something with the update ! '''
     for client in clients:
-        client.put(json.dumps({ entity: data })) 
+        client.put(json.dumps({entity: data}))
 
-myWorld.add_set_listener( set_listener )
-        
+
+myWorld.add_set_listener(set_listener)
+
+
 @app.route('/')
 def hello():
     '''Return something coherent here.. perhaps redirect to /static/index.html '''
     return flask.redirect("/static/index.html")
 
-def read_ws(ws,client):
+
+def read_ws(ws, client):
     '''A greenlet function that reads from the websocket and updates the world'''
     try:
         while True:
@@ -114,7 +123,7 @@ def read_ws(ws,client):
 def subscribe_socket(ws):
     '''Fufill the websocket URL of /subscribe, every update notify the
        websocket and read updates from the websocket '''
-    #https://github.com/abramhindle/WebSocketsExamples/blob/master/broadcaster.py
+    # https://github.com/abramhindle/WebSocketsExamples/blob/master/broadcaster.py
     client = Client()
     clients.append(client)
     g = gevent.spawn(read_ws, ws, client)
@@ -125,7 +134,7 @@ def subscribe_socket(ws):
             msg = client.get()
             print("Got a message!: %s" % msg)
             ws.send(msg)
-    except Exception as e:   # WebSocketError as e:
+    except Exception as e:  # WebSocketError as e:
         print("WS Error %s" % e)
     finally:
         clients.remove(client)
@@ -144,7 +153,8 @@ def flask_post_json():
     else:
         return json.loads(request.form.keys()[0])
 
-@app.route("/entity/<entity>", methods=['POST','PUT'])
+
+@app.route("/entity/<entity>", methods=['POST', 'PUT'])
 def update(entity):
     '''update the entities via this interface'''
     data = flask_post_json()
@@ -152,23 +162,24 @@ def update(entity):
         myWorld.update(entity, d, data[d])
     return json.dumps(myWorld.get(entity))
 
-@app.route("/world", methods=['POST','GET'])    
+
+@app.route("/world", methods=['POST', 'GET'])
 def world():
     '''you should probably return the world here'''
     return json.dumps(myWorld.world())
 
-@app.route("/entity/<entity>")    
+
+@app.route("/entity/<entity>")
 def get_entity(entity):
     '''This is the GET version of the entity interface, return a representation of the entity'''
     return json.dumps(myWorld.get(entity))
 
 
-@app.route("/clear", methods=['POST','GET'])
+@app.route("/clear", methods=['POST', 'GET'])
 def clear():
     '''Clear the world out!'''
     myWorld.clear()
     return json.dumps(myWorld.world())
-
 
 
 if __name__ == "__main__":
